@@ -42,7 +42,6 @@
 <body>
     <div id="info">
         <h1>✨ 光效圣诞树 ✨</h1>
-        <p>拖动鼠标旋转视角 | 滚轮缩放 | 点击礼物盒</p>
     </div>
 
     <script type="importmap">
@@ -67,7 +66,7 @@
 
         // 相机设置
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 5, 12);
+        camera.position.set(0, 0, 12);
 
         // 渲染器
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -85,8 +84,34 @@
 
         // 加载照片纹理
         const textureLoader = new THREE.TextureLoader();
-        const photoTexture = textureLoader.load('1.png');
+        const photoTexture = textureLoader.load('1.png', (texture) => {
+            console.log('照片纹理加载成功', texture);
+        }, undefined, (error) => {
+            console.error('照片纹理加载失败', error);
+        });
         photoTexture.colorSpace = THREE.SRGBColorSpace;
+        photoTexture.flipY = false;
+
+        // 创建圆形光点纹理
+        function createCircleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.8)');
+            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 64, 64);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            return texture;
+        }
+
+        const circleTexture = createCircleTexture();
 
         // 光效圣诞树组
         const lightTreeGroup = new THREE.Group();
@@ -95,32 +120,38 @@
         // 金黄色光点材质
         const goldenLightMaterial = new THREE.PointsMaterial({
             color: 0xffd700,
-            size: 0.15,
-            transparent: true,
-            opacity: 0.9,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            sizeAttenuation: true
-        });
-
-        const warmGoldenMaterial = new THREE.PointsMaterial({
-            color: 0xffaa00,
-            size: 0.12,
-            transparent: true,
-            opacity: 0.8,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            sizeAttenuation: true
-        });
-
-        const brightGoldenMaterial = new THREE.PointsMaterial({
-            color: 0xffee88,
-            size: 0.2,
+            size: 0.04,
+            map: circleTexture,
             transparent: true,
             opacity: 1,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
-            sizeAttenuation: true
+            sizeAttenuation: true,
+            alphaTest: 0.1
+        });
+
+        const warmGoldenMaterial = new THREE.PointsMaterial({
+            color: 0xffaa00,
+            size: 0.03,
+            map: circleTexture,
+            transparent: true,
+            opacity: 1,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            sizeAttenuation: true,
+            alphaTest: 0.1
+        });
+
+        const brightGoldenMaterial = new THREE.PointsMaterial({
+            color: 0xffee88,
+            size: 0.06,
+            map: circleTexture,
+            transparent: true,
+            opacity: 1,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            sizeAttenuation: true,
+            alphaTest: 0.1
         });
 
         // 存储所有光点用于动画
@@ -173,37 +204,11 @@
             return positions.length / 3;
         }
 
-        // 创建树干光点（垂直线条）
-        function createTrunkLights() {
-            const trunkPositions = [];
-            const trunkLines = 8;
-            const segmentsPerLine = 20;
-
-            for (let line = 0; line < trunkLines; line++) {
-                const angle = (line / trunkLines) * Math.PI * 2;
-                for (let seg = 0; seg < segmentsPerLine; seg++) {
-                    const t = seg / segmentsPerLine;
-                    const x = Math.cos(angle) * 0.4;
-                    const z = Math.sin(angle) * 0.4;
-                    const y = t * 1.5;
-                    trunkPositions.push(x, y, z);
-                }
-            }
-
-            const geometry = new THREE.BufferGeometry();
-            geometry.setAttribute('position', new THREE.Float32BufferAttribute(trunkPositions, 3));
-            const trunkParticles = new THREE.Points(geometry, goldenLightMaterial);
-            lightTreeGroup.add(trunkParticles);
-            particleGroups.push({ mesh: trunkParticles, type: 'trunk' });
-
-            return trunkPositions.length / 3;
-        }
-
         // 创建树层光点（螺旋光带）
         function createTreeLayerLights(bottomY, topY, bottomRadius, topRadius, layerIndex) {
             const height = topY - bottomY;
             const turns = 3;
-            const density = 150;
+            const density = 1000;
 
             const positions = [];
             for (let i = 0; i < density; i++) {
@@ -217,15 +222,8 @@
                 let z = Math.sin(angle) * radius;
                 positions.push(x, y, z);
 
-                // 第二层螺旋（偏移）
-                const angle2 = angle + Math.PI;
-                const radius2 = radius * 0.85;
-                x = Math.cos(angle2) * radius2;
-                z = Math.sin(angle2) * radius2;
-                positions.push(x, y, z);
-
                 // 随机点缀光点
-                if (i % 5 === 0) {
+                if (i % 3 === 0) {
                     const randAngle = Math.random() * Math.PI * 2;
                     const randRadius = radius * (0.3 + Math.random() * 0.4);
                     x = Math.cos(randAngle) * randRadius;
@@ -250,10 +248,10 @@
         function createOutlineLights() {
             const outlinePositions = [];
             const layers = [
-                { y: 2.5, r: 2.5 },
-                { y: 4.2, r: 2.0 },
-                { y: 5.7, r: 1.5 },
-                { y: 7.0, r: 1.0 }
+                { y: 0, r: 1.8 },
+                { y: 1.5, r: 1.5 },
+                { y: 2.8, r: 1.0 },
+                { y: 3.8, r: 0.5 }
             ];
 
             layers.forEach((layer, idx) => {
@@ -278,32 +276,33 @@
         // 创建顶部星星（由光点组成）
         function createStarLights() {
             const starPositions = [];
-            const starY = 8.5;
+            const starY = 4.4;
 
             // 五角星顶点
             const outerRadius = 0.5;
             const innerRadius = 0.25;
             const points = 5;
 
-            // 创建多层星星轮廓
+            // 创建多层星星轮廓（竖直五角星，在 XY 平面）
             for (let layer = 0; layer < 3; layer++) {
                 const layerScale = 1 - layer * 0.2;
-                const layerY = starY + layer * 0.1;
+                const layerX = layer * 0.1;
 
                 for (let i = 0; i < points * 2; i++) {
                     const radius = i % 2 === 0 ? outerRadius : innerRadius;
-                    const angle = (i * Math.PI) / points - Math.PI / 2;
-                    const x = Math.cos(angle) * radius * layerScale;
-                    const z = Math.sin(angle) * radius * layerScale;
-                    starPositions.push(x, layerY, z);
+                    const baseAngle = (i * Math.PI) / points +  Math.PI;
+                    const rotAngle = baseAngle;
+                    const y = -Math.cos(rotAngle) * radius * layerScale;
+                    const z = Math.sin(rotAngle) * radius * layerScale;
+                    starPositions.push(layerX, starY + y, z);
 
                     // 每个点周围添加光晕
                     for (let j = 0; j < 3; j++) {
                         const haloAngle = Math.random() * Math.PI * 2;
                         const haloRadius = 0.05 + Math.random() * 0.1;
                         starPositions.push(
-                            x + Math.cos(haloAngle) * haloRadius,
-                            layerY + (Math.random() - 0.5) * 0.1,
+                            layerX + (Math.random() - 0.5) * 0.1,
+                            starY + y + Math.cos(haloAngle) * haloRadius,
                             z + Math.sin(haloAngle) * haloRadius
                         );
                     }
@@ -354,10 +353,12 @@
             geometry.setAttribute('position', new THREE.Float32BufferAttribute(floatPositions, 3));
             const floatMaterial = new THREE.PointsMaterial({
                 color: 0xffaa00,
-                size: 0.08,
+                size: 0.04,
+                map: circleTexture,
                 transparent: true,
-                opacity: 0.6,
-                blending: THREE.AdditiveBlending
+                opacity: 0.4,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
             });
             const floatParticles = new THREE.Points(geometry, floatMaterial);
             scene.add(floatParticles);
@@ -370,71 +371,312 @@
         function createLightPhotoFrame(x, y, z, rotY, scale = 1) {
             const frameGroup = new THREE.Group();
 
-            // 照片
-            const photoGeometry = new THREE.PlaneGeometry(0.5, 0.65);
-            const photoMaterial = new THREE.MeshStandardMaterial({
+            // 照片 - 使用自定义几何体确保 UV 正确
+            const photoGeometry = new THREE.BufferGeometry();
+            const vertices = new Float32Array([
+                -0.125, -0.1625, 0.05,   // 左下
+                 0.125, -0.1625, 0.05,   // 右下
+                 0.125,  0.1625, 0.05,   // 右上
+                -0.125, -0.1625, 0.05,   // 左下
+                 0.125,  0.1625, 0.05,   // 右上
+                -0.125,  0.1625, 0.05    // 左上
+            ]);
+            const uvs = new Float32Array([
+                0, 1,  // 左下
+                1, 1,  // 右下
+                1, 0,  // 右上
+                0, 1,  // 左下
+                1, 0,  // 右上
+                0, 0   // 左上
+            ]);
+            photoGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+            photoGeometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+
+            const photoMaterial = new THREE.MeshBasicMaterial({
                 map: photoTexture,
                 side: THREE.DoubleSide,
                 transparent: true,
-                opacity: 0.95
+                opacity: 0,
+                depthTest: false
             });
             const photo = new THREE.Mesh(photoGeometry, photoMaterial);
+            photo.rotation.y = Math.PI;
+            photo.renderOrder = 999;
+            photo.visible = false;
             frameGroup.add(photo);
 
-            // 发光相框边框（由小光点组成）
-            const borderPointsMaterial = new THREE.PointsMaterial({
-                color: 0xffd700,
-                size: 0.08,
+            // 雪花形状（由小光点组成）- 精致树枝状冰晶结构
+            const snowflakeMaterial = new THREE.PointsMaterial({
+                color: 0x66ccff,
+                size: 0.018,
                 transparent: true,
-                opacity: 1,
+                opacity: 0.9,
                 blending: THREE.AdditiveBlending
             });
 
-            const borderPositions = [];
-            const borderDensity = 40;
+            const snowflakePositions = [];
+            const arms = 6;
 
-            // 矩形边框
-            for (let i = 0; i < borderDensity; i++) {
-                const t = i / borderDensity;
-                let bx, by;
-                if (t < 0.25) {
-                    bx = -0.275 + t * 4 * 0.55;
-                    by = -0.35;
-                } else if (t < 0.5) {
-                    bx = 0.275;
-                    by = -0.35 + (t - 0.25) * 4 * 0.7;
-                } else if (t < 0.75) {
-                    bx = 0.275 - (t - 0.5) * 4 * 0.55;
-                    by = 0.35;
-                } else {
-                    bx = -0.275;
-                    by = 0.35 - (t - 0.75) * 4 * 0.7;
+            // 创建雪花六角 - 树枝状冰晶
+            for (let arm = 0; arm < arms; arm++) {
+                const armAngle = (arm / arms) * Math.PI * 2;
+
+                // 主枝干线 - 双线冰柱状
+                for (let i = 0; i < 50; i++) {
+                    const t = i / 50;
+                    const dist = t * 0.24;
+
+                    // 主干光点（双线，形成更明显的冰柱效果）
+                    const offsetAngle = 0.025 * (1 - t * 0.7);
+                    // 主线 1
+                    snowflakePositions.push(
+                        Math.cos(armAngle + offsetAngle) * dist,
+                        Math.sin(armAngle + offsetAngle) * dist,
+                        0.025
+                    );
+                    // 主线 2
+                    snowflakePositions.push(
+                        Math.cos(armAngle - offsetAngle) * dist,
+                        Math.sin(armAngle - offsetAngle) * dist,
+                        0.025
+                    );
+
+                    // 中心线增强
+                    if (i % 3 === 0) {
+                        snowflakePositions.push(
+                            Math.cos(armAngle) * dist,
+                            Math.sin(armAngle) * dist,
+                            0.028
+                        );
+                    }
+
+                    // 主枝两侧的冰晶分支（60 度角，像松树枝）
+                    if (i >= 8 && i <= 42) {
+                        const branchAngle1 = armAngle + Math.PI / 3;
+                        const branchAngle2 = armAngle - Math.PI / 3;
+                        // 中间粗两端细的分支
+                        const branchFactor = Math.sin((t - 0.16) * Math.PI / 0.68) * 0.19;
+                        const branchDist = Math.max(0, branchFactor);
+
+                        // 分支双线结构
+                        const branchOffset = 0.015 * (1 - t);
+                        snowflakePositions.push(
+                            Math.cos(branchAngle1 + branchOffset) * branchDist,
+                            Math.sin(branchAngle1 + branchOffset) * branchDist,
+                            0.022
+                        );
+                        snowflakePositions.push(
+                            Math.cos(branchAngle1 - branchOffset) * branchDist,
+                            Math.sin(branchAngle1 - branchOffset) * branchDist,
+                            0.022
+                        );
+                        snowflakePositions.push(
+                            Math.cos(branchAngle2 + branchOffset) * branchDist,
+                            Math.sin(branchAngle2 + branchOffset) * branchDist,
+                            0.022
+                        );
+                        snowflakePositions.push(
+                            Math.cos(branchAngle2 - branchOffset) * branchDist,
+                            Math.sin(branchAngle2 - branchOffset) * branchDist,
+                            0.022
+                        );
+
+                        // 分支上的冰晶簇（3 层螺旋排列）
+                        if (i % 4 === 0) {
+                            for (let c = 0; c < 4; c++) {
+                                const crystalT = c / 4;
+                                const crystalDist = branchDist * (0.3 + crystalT * 0.7);
+                                const spiralAngle = crystalT * Math.PI / 4;
+                                const crystalAngle1 = branchAngle1 + Math.PI / 6 + spiralAngle;
+                                const crystalAngle2 = branchAngle2 - Math.PI / 6 - spiralAngle;
+
+                                snowflakePositions.push(
+                                    Math.cos(crystalAngle1) * crystalDist,
+                                    Math.sin(crystalAngle1) * crystalDist,
+                                    0.02 + crystalT * 0.01
+                                );
+                                snowflakePositions.push(
+                                    Math.cos(crystalAngle2) * crystalDist,
+                                    Math.sin(crystalAngle2) * crystalDist,
+                                    0.02 + crystalT * 0.01
+                                );
+
+                                // 二级小分支
+                                if (c > 0) {
+                                    const subBranchDist = crystalDist * 0.5;
+                                    const subBranchAngle1 = crystalAngle1 + Math.PI / 8;
+                                    const subBranchAngle2 = crystalAngle2 - Math.PI / 8;
+                                    snowflakePositions.push(
+                                        Math.cos(subBranchAngle1) * subBranchDist,
+                                        Math.sin(subBranchAngle1) * subBranchDist,
+                                        0.018
+                                    );
+                                    snowflakePositions.push(
+                                        Math.cos(subBranchAngle2) * subBranchDist,
+                                        Math.sin(subBranchAngle2) * subBranchDist,
+                                        0.018
+                                    );
+                                }
+                            }
+                        }
+
+                        // 分支末端的小冰晶簇
+                        if (i % 6 === 0 && branchDist > 0.04) {
+                            const tipAngle1 = branchAngle1 + Math.PI / 10;
+                            const tipAngle2 = branchAngle1 - Math.PI / 10;
+                            const tipAngle3 = branchAngle2 + Math.PI / 10;
+                            const tipAngle4 = branchAngle2 - Math.PI / 10;
+                            const tipDist = branchDist * 0.6;
+
+                            // 三叉小冰晶
+                            for (let f = 0; f < 3; f++) {
+                                const forkAngle = f * Math.PI / 12;
+                                snowflakePositions.push(
+                                    Math.cos(tipAngle1 + forkAngle) * tipDist,
+                                    Math.sin(tipAngle1 + forkAngle) * tipDist,
+                                    0.018
+                                );
+                                snowflakePositions.push(
+                                    Math.cos(tipAngle3 + forkAngle) * tipDist,
+                                    Math.sin(tipAngle3 + forkAngle) * tipDist,
+                                    0.018
+                                );
+                            }
+                        }
+                    }
+
+                    // 主枝上的横向冰晶连接（六边形框架）
+                    if (i >= 10 && i <= 40 && i % 5 === 0) {
+                        const hexDist = dist * 0.18;
+                        for (let h = 0; h < 6; h++) {
+                            const hexAngle = (h / 6) * Math.PI * 2 + armAngle;
+                            snowflakePositions.push(
+                                Math.cos(hexAngle) * hexDist,
+                                Math.sin(hexAngle) * hexDist,
+                                0.02
+                            );
+                        }
+                        // 六边形顶点装饰
+                        for (let h = 0; h < 6; h++) {
+                            const hexAngle = (h / 6) * Math.PI * 2 + armAngle + Math.PI / 6;
+                            const decDist = hexDist * 1.15;
+                            snowflakePositions.push(
+                                Math.cos(hexAngle) * decDist,
+                                Math.sin(hexAngle) * decDist,
+                                0.023
+                            );
+                        }
+                    }
                 }
-                borderPositions.push(bx, by, 0.02);
+
+                // 末端三叉冰晶（更复杂）
+                const tipDist = 0.26;
+                for (let t = 0; t < 3; t++) {
+                    const spread = 0.2 - t * 0.05;
+                    const tipAngle = armAngle + (t - 1) * spread;
+                    const tipRadius = tipDist + t * 0.015;
+
+                    // 三叉主干
+                    snowflakePositions.push(
+                        Math.cos(tipAngle) * tipRadius,
+                        Math.sin(tipAngle) * tipRadius,
+                        0.025
+                    );
+                    // 两侧分支
+                    snowflakePositions.push(
+                        Math.cos(tipAngle + 0.1) * tipRadius * 0.7,
+                        Math.sin(tipAngle + 0.1) * tipRadius * 0.7,
+                        0.02
+                    );
+                    snowflakePositions.push(
+                        Math.cos(tipAngle - 0.1) * tipRadius * 0.7,
+                        Math.sin(tipAngle - 0.1) * tipRadius * 0.7,
+                        0.02
+                    );
+                }
             }
 
-            const borderGeometry = new THREE.BufferGeometry();
-            borderGeometry.setAttribute('position', new THREE.Float32BufferAttribute(borderPositions, 3));
-            const borderPoints = new THREE.Points(borderGeometry, borderPointsMaterial);
-            frameGroup.add(borderPoints);
+            // 中心六边形冰晶核心（3 层旋转）
+            for (let ring = 0; ring < 3; ring++) {
+                const ringRadius = 0.03 + ring * 0.025;
+                const rotation = ring * Math.PI / 6;
+                for (let i = 0; i < 6; i++) {
+                    const angle = (i / 6) * Math.PI * 2 + rotation;
+                    snowflakePositions.push(
+                        Math.cos(angle) * ringRadius,
+                        Math.sin(angle) * ringRadius,
+                        0.03 - ring * 0.005
+                    );
+                }
+            }
 
-            // 四角亮点
-            const cornerMaterial = new THREE.PointsMaterial({
-                color: 0xffee88,
-                size: 0.15,
+            // 中心亮点
+            snowflakePositions.push(0, 0, 0.035);
+            snowflakePositions.push(0, 0, 0.02);
+
+            // 中间六边形框架
+            for (let i = 0; i < 6; i++) {
+                const angle = (i / 6) * Math.PI * 2;
+                const hexRadius = 0.14;
+                snowflakePositions.push(
+                    Math.cos(angle) * hexRadius,
+                    Math.sin(angle) * hexRadius,
+                    0.025
+                );
+
+                // 六边形边上的冰晶装饰
+                const edgeAngle1 = angle + Math.PI / 12;
+                const edgeAngle2 = angle - Math.PI / 12;
+                const edgeDist = hexRadius * 0.92;
+                snowflakePositions.push(
+                    Math.cos(edgeAngle1) * edgeDist,
+                    Math.sin(edgeAngle1) * edgeDist,
+                    0.023
+                );
+                snowflakePositions.push(
+                    Math.cos(edgeAngle2) * edgeDist,
+                    Math.sin(edgeAngle2) * edgeDist,
+                    0.023
+                );
+
+                // 六边形外冰晶簇
+                const clusterAngle = angle;
+                const clusterDist = hexRadius * 1.15;
+                for (let c = 0; c < 3; c++) {
+                    const cAngle = clusterAngle + (c - 1) * Math.PI / 16;
+                    snowflakePositions.push(
+                        Math.cos(cAngle) * clusterDist * (1 - c * 0.15),
+                        Math.sin(cAngle) * clusterDist * (1 - c * 0.15),
+                        0.02
+                    );
+                }
+            }
+
+            const snowflakeGeometry = new THREE.BufferGeometry();
+            snowflakeGeometry.setAttribute('position', new THREE.Float32BufferAttribute(snowflakePositions, 3));
+            const snowflake = new THREE.Points(snowflakeGeometry, snowflakeMaterial);
+            frameGroup.add(snowflake);
+
+            // 添加一个点击检测平面（透明但可检测）
+            const hitGeometry = new THREE.PlaneGeometry(0.5, 0.5);
+            const hitMaterial = new THREE.MeshBasicMaterial({
                 transparent: true,
-                opacity: 1,
-                blending: THREE.AdditiveBlending
+                opacity: 0,
+                depthTest: false,
+                depthWrite: false,
+                color: 0xffffff,
+                side: THREE.DoubleSide
             });
-            const corners = [-0.25, -0.3, 0.25, -0.3, 0.25, 0.3, -0.25, 0.3];
-            const cornerPositions = [];
-            for (let i = 0; i < 4; i++) {
-                cornerPositions.push(corners[i * 2], corners[i * 2 + 1], 0.03);
-            }
-            const cornerGeometry = new THREE.BufferGeometry();
-            cornerGeometry.setAttribute('position', new THREE.Float32BufferAttribute(cornerPositions, 3));
-            const cornerPoints = new THREE.Points(cornerGeometry, cornerMaterial);
-            frameGroup.add(cornerPoints);
+            const hitMesh = new THREE.Mesh(hitGeometry, hitMaterial);
+            hitMesh.rotation.y = Math.PI;
+            hitMesh.position.z = 0.1;
+            hitMesh.renderOrder = 1;
+            frameGroup.add(hitMesh);
+
+            frameGroup.userData.photo = photo;
+            frameGroup.userData.snowflake = snowflake;
+            frameGroup.userData.hitMesh = hitMesh;
+            frameGroup.userData.showingPhoto = false;
 
             frameGroup.position.set(x, y, z);
             frameGroup.rotation.y = rotY;
@@ -452,8 +694,10 @@
             const radius = 3.5;
             const x = Math.cos(angle) * radius;
             const z = Math.sin(angle) * radius;
-            const y = 1 + (i % 4) * 1.5;
-            createLightPhotoFrame(x, y, z, -angle + Math.PI, 0.8 + Math.random() * 0.2);
+            const y = 0.5 + (i % 4) * 1.2;
+            const frame = createLightPhotoFrame(x, y, z, -angle + Math.PI, 0.8 + Math.random() * 0.2);
+            frame.userData.frameIndex = i;
+            particleGroups.push({ mesh: frame, type: 'frame' });
         }
 
         // 创建地面光环
@@ -468,7 +712,7 @@
                     const angle = (i / pointsPerRing) * Math.PI * 2;
                     ringPositions.push(
                         Math.cos(angle) * radius,
-                        0,
+                        -1,
                         Math.sin(angle) * radius
                     );
                 }
@@ -478,7 +722,7 @@
             geometry.setAttribute('position', new THREE.Float32BufferAttribute(ringPositions, 3));
             const ringMaterial = new THREE.PointsMaterial({
                 color: 0xffd700,
-                size: 0.12,
+                size: 0.05,
                 transparent: true,
                 opacity: 0.7,
                 blending: THREE.AdditiveBlending
@@ -490,11 +734,10 @@
 
         // 构建光效树
         let totalParticles = 0;
-        totalParticles += createTrunkLights();
-        totalParticles += createTreeLayerLights(0.3, 2.5, 0.3, 2.5, 0);
-        totalParticles += createTreeLayerLights(2.5, 4.2, 2.0, 1.5, 1);
-        totalParticles += createTreeLayerLights(4.2, 5.7, 1.5, 1.0, 2);
-        totalParticles += createTreeLayerLights(5.7, 7.0, 1.0, 0.5, 3);
+        totalParticles += createTreeLayerLights(-1.8, 0, 1.0, 1.8, 0);
+        totalParticles += createTreeLayerLights(0, 1.5, 1.5, 1.0, 1);
+        totalParticles += createTreeLayerLights(1.5, 2.8, 1.0, 0.5, 2);
+        totalParticles += createTreeLayerLights(2.8, 3.8, 0.5, 0.2, 3);
         totalParticles += createOutlineLights();
         totalParticles += createStarLights();
         createFloatingLights();
@@ -514,101 +757,216 @@
         pointLight2.position.set(-5, 3, -5);
         scene.add(pointLight2);
 
-        // 礼物盒
-        const gifts = [];
-        const explosions = [];
-
-        function createGift(x, z, color, ribbonColor) {
-            const group = new THREE.Group();
-
-            const boxGeometry = new THREE.BoxGeometry(0.8, 0.6, 0.8);
-            const boxMaterial = new THREE.MeshStandardMaterial({
-                color: color,
-                metalness: 0.3,
-                roughness: 0.5
-            });
-            const box = new THREE.Mesh(boxGeometry, boxMaterial);
-            box.castShadow = true;
-            group.add(box);
-
-            const ribbonH = new THREE.Mesh(
-                new THREE.BoxGeometry(0.82, 0.1, 0.15),
-                new THREE.MeshStandardMaterial({ color: ribbonColor })
-            );
-            group.add(ribbonH);
-
-            const ribbonV = new THREE.Mesh(
-                new THREE.BoxGeometry(0.15, 0.1, 0.82),
-                new THREE.MeshStandardMaterial({ color: ribbonColor })
-            );
-            group.add(ribbonV);
-
-            group.position.set(x, 0.3, z);
-            group.rotation.y = Math.random() * Math.PI;
-            group.userData.color = color;
-            group.userData.exploded = false;
-
-            return group;
-        }
-
-        const gift1 = createGift(-1.5, 1.5, 0xff6b6b, 0xffd700);
-        const gift2 = createGift(1.8, 1.2, 0x4ecdc4, 0xffffff);
-        const gift3 = createGift(-1.2, -1.8, 0xffe66d, 0xff6b6b);
-        const gift4 = createGift(1.5, -1.5, 0x95e1d3, 0xffd700);
-
-        gifts.push(gift1, gift2, gift3, gift4);
-        gifts.forEach(gift => scene.add(gift));
-
-        // 创建爆炸粒子效果
-        function createExplosion(position, color) {
-            const particleCount = 50;
-            const geometry = new THREE.BufferGeometry();
-            const positions = new Float32Array(particleCount * 3);
-            const velocities = [];
-            const colors = new Float32Array(particleCount * 3);
-
-            const colorObj = new THREE.Color(color);
-
-            for (let i = 0; i < particleCount; i++) {
-                positions[i * 3] = position.x;
-                positions[i * 3 + 1] = position.y;
-                positions[i * 3 + 2] = position.z;
-
-                velocities.push({
-                    x: (Math.random() - 0.5) * 0.3,
-                    y: Math.random() * 0.2 + 0.1,
-                    z: (Math.random() - 0.5) * 0.3
-                });
-
-                const variation = Math.random() * 0.3;
-                colors[i * 3] = Math.min(1, colorObj.r + variation);
-                colors[i * 3 + 1] = Math.min(1, colorObj.g + variation);
-                colors[i * 3 + 2] = Math.min(1, colorObj.b + variation);
-            }
-
-            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-            const material = new THREE.PointsMaterial({
-                size: 0.15,
-                vertexColors: true,
-                transparent: true,
-                opacity: 1
-            });
-
-            const particles = new THREE.Points(geometry, material);
-            particles.userData.velocities = velocities;
-            particles.userData.life = 1.0;
-
-            scene.add(particles);
-            explosions.push(particles);
-
-            return particles;
-        }
-
         // 鼠标点击检测
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
+
+        // 隐藏的文件选择输入
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.style.display = 'none';
+        document.body.appendChild(fileInput);
+
+        // 存储相框照片数据
+        const framePhotos = new Array(8).fill(null);
+
+        let selectedFrame = null;
+        let selectedFrameIndex = -1;
+        let expandedFrame = null;
+
+        // 加载配置输入
+        const loadInput = document.createElement('input');
+        loadInput.type = 'file';
+        loadInput.accept = '.json,application/json';
+        loadInput.style.display = 'none';
+        document.body.appendChild(loadInput);
+
+        loadInput.onchange = (e) => {
+            if (e.target.files && e.target.files[0]) {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    try {
+                        const config = JSON.parse(event.target.result);
+                        if (config.framePhotos && Array.isArray(config.framePhotos)) {
+                            // 加载照片到相框
+                            config.framePhotos.forEach((photoData, index) => {
+                                if (photoData && photoFrames[index]) {
+                                    const newTexture = new THREE.TextureLoader().load(photoData);
+                                    newTexture.flipY = false;
+                                    const frame = photoFrames[index];
+
+                                    // 更新照片材质
+                                    frame.children.forEach(child => {
+                                        if (child.isMesh && child.material.map) {
+                                            child.material.map = newTexture;
+                                            child.material.needsUpdate = true;
+                                        }
+                                    });
+
+                                    // 显示照片，隐藏雪花
+                                    if (frame.userData.photo && frame.userData.snowflake) {
+                                        frame.userData.photo.visible = true;
+                                        frame.userData.snowflake.visible = false;
+                                        frame.userData.showingPhoto = true;
+                                    }
+
+                                    framePhotos[index] = photoData;
+                                }
+                            });
+                            alert('配置加载成功！');
+                        } else {
+                            alert('无效的配置格式');
+                        }
+                    } catch (err) {
+                        alert('读取配置文件失败：' + err.message);
+                    }
+                };
+                reader.readAsText(file);
+            }
+        };
+
+        // 加载配置按钮
+        const loadBtn = document.createElement('button');
+        loadBtn.textContent = '📂 加载配置';
+        loadBtn.style.cssText = `
+            background: linear-gradient(135deg, #9C27B0, #7B1FA2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(156, 39, 176, 0.4);
+            transition: all 0.2s;
+            margin-right: 10px;
+        `;
+        loadBtn.onmouseover = () => {
+            loadBtn.style.transform = 'scale(1.05)';
+            loadBtn.style.boxShadow = '0 6px 20px rgba(156, 39, 176, 0.6)';
+        };
+        loadBtn.onmouseout = () => {
+            loadBtn.style.transform = 'scale(1)';
+            loadBtn.style.boxShadow = '0 4px 15px rgba(156, 39, 176, 0.4)';
+        };
+        loadBtn.onclick = () => {
+            // 检查是否有 localStorage 配置
+            const savedConfig = localStorage.getItem('christmasTreeConfig');
+            if (savedConfig) {
+                const useStored = confirm('检测到已保存的配置：\n- 点击"确定"从 JSON 文件加载\n- 点击"取消"清除已保存的配置');
+                if (!useStored) {
+                    localStorage.removeItem('christmasTreeConfig');
+                    alert('已清除保存的配置，页面将刷新。');
+                    location.reload();
+                    return;
+                }
+            }
+            loadInput.click();
+        };
+
+        // 更换照片提示
+        const changePhotoTip = document.createElement('div');
+        changePhotoTip.id = 'change-photo-tip';
+        changePhotoTip.style.cssText = `
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            padding: 15px 30px;
+            border-radius: 30px;
+            color: #ffd700;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            box-shadow: 0 5px 30px rgba(255, 215, 0, 0.4);
+            border: 2px solid #ffd700;
+            opacity: 0;
+            transition: all 0.4s ease;
+            z-index: 2000;
+            pointer-events: none;
+        `;
+        changePhotoTip.textContent = '双击相框更换照片';
+        document.body.appendChild(changePhotoTip);
+
+        // 保存按钮和提示
+        const saveContainer = document.createElement('div');
+        saveContainer.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 3000;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 10px;
+        `;
+
+        const saveTip = document.createElement('div');
+        saveTip.style.cssText = `
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: #ffd700;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            border: 1px solid #ffd700;
+            opacity: 0;
+            transition: opacity 0.3s;
+        `;
+        saveTip.textContent = '照片已修改，请保存';
+        saveContainer.appendChild(saveTip);
+
+        const btnContainer = document.createElement('div');
+        btnContainer.style.cssText = `
+            display: flex;
+            gap: 10px;
+        `;
+
+        const saveBtn = document.createElement('button');
+        saveBtn.textContent = '💾 保存配置';
+        saveBtn.style.cssText = `
+            background: linear-gradient(135deg, #2196F3, #1976D2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.4);
+            transition: all 0.2s;
+        `;
+        saveBtn.onmouseover = () => {
+            saveBtn.style.transform = 'scale(1.05)';
+            saveBtn.style.boxShadow = '0 6px 20px rgba(33, 150, 243, 0.6)';
+        };
+        saveBtn.onmouseout = () => {
+            saveBtn.style.transform = 'scale(1)';
+            saveBtn.style.boxShadow = '0 4px 15px rgba(33, 150, 243, 0.4)';
+        };
+        btnContainer.appendChild(loadBtn);
+        btnContainer.appendChild(saveBtn);
+        saveContainer.appendChild(btnContainer);
+        document.body.appendChild(saveContainer);
+
+        let hasUnsavedChanges = false;
+
+        function showSaveTip() {
+            saveTip.style.opacity = '1';
+            setTimeout(() => {
+                saveTip.style.opacity = '0';
+            }, 2000);
+        }
+
+        function showChangePhotoTip() {
+            changePhotoTip.style.transform = 'translateX(-50%) translateY(0)';
+            changePhotoTip.style.opacity = '1';
+            setTimeout(() => {
+                changePhotoTip.style.transform = 'translateX(-50%) translateY(100px)';
+                changePhotoTip.style.opacity = '0';
+            }, 2000);
+        }
 
         // 照片弹窗
         const photoContainer = document.createElement('div');
@@ -619,26 +977,25 @@
             left: 50%;
             transform: translate(-50%, -50%) scale(0);
             z-index: 1000;
-            background: linear-gradient(135deg, #1a1a2e, #16213e);
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 0 50px rgba(255, 215, 0, 0.5);
             transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            border: 2px solid #ffd700;
+            padding: 40px;
         `;
         document.body.appendChild(photoContainer);
 
         const photoImg = document.createElement('img');
         photoImg.src = '1.png';
         photoImg.style.cssText = `
-            max-width: 300px;
-            max-height: 300px;
+            max-width: 80vw;
+            max-height: 80vh;
+            width: auto;
+            height: auto;
             display: block;
-            border-radius: 8px;
-            border: 2px solid #ffd700;
+            border-radius: 12px;
+            box-shadow: 0 0 60px rgba(255, 215, 0, 0.6), 0 0 120px rgba(255, 215, 0, 0.3);
+            filter: drop-shadow(0 0 30px rgba(255, 215, 0, 0.4));
         `;
         photoImg.onerror = function() {
-            this.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect fill="#1a1a2e" width="300" height="200"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="#ffd700" font-family="Arial">照片加载失败</text></svg>');
+            this.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="700" height="450"><rect fill="#1a1a2e" width="700" height="450"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="#ffd700" font-family="Arial">照片加载失败</text></svg>');
         };
         photoContainer.appendChild(photoImg);
 
@@ -660,11 +1017,214 @@
             font-size: 22px;
             font-weight: bold;
             box-shadow: 0 2px 15px rgba(255, 215, 0, 0.5);
+            transition: transform 0.2s;
         `;
-        closeBtn.onclick = () => {
+        closeBtn.onmouseover = () => closeBtn.style.transform = 'scale(1.1)';
+        closeBtn.onmouseout = () => closeBtn.style.transform = 'scale(1)';
+
+        const replaceBtn = document.createElement('button');
+        replaceBtn.textContent = '更换照片';
+        replaceBtn.style.cssText = `
+            position: absolute;
+            bottom: -16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 10px;
+            font-weight: bold;
+            box-shadow: 0 2px 6px rgba(76, 175, 80, 0.4);
+            transition: all 0.2s;
+        `;
+        replaceBtn.onmouseover = () => {
+            replaceBtn.style.transform = 'translateX(-50%) scale(1.05)';
+        };
+        replaceBtn.onmouseout = () => {
+            replaceBtn.style.transform = 'translateX(-50%)';
+        };
+
+        let isReplacing = false;
+
+        replaceBtn.onclick = (e) => {
+            e.stopPropagation();
+            isReplacing = true;
+            // 确保 selectedFrameIndex 正确设置
+            if (selectedFrame && selectedFrame.userData.frameIndex !== undefined) {
+                selectedFrameIndex = selectedFrame.userData.frameIndex;
+            }
+            fileInput.click();
+        };
+
+        fileInput.onchange = (e) => {
+            if (e.target.files && e.target.files[0] && selectedFrame) {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const newTexture = new THREE.TextureLoader().load(event.target.result);
+                    newTexture.flipY = false;
+                    newTexture.needsUpdate = true;
+
+                    // 查找并更新相框中的照片材质
+                    selectedFrame.children.forEach(child => {
+                        if (child.isMesh && child.material.map) {
+                            child.material.map = newTexture;
+                            child.material.needsUpdate = true;
+                        }
+                    });
+
+                    // 使用相框的 frameIndex 而不是 selectedFrameIndex
+                    const frameIndex = selectedFrame.userData.frameIndex;
+                    if (frameIndex !== undefined) {
+                        framePhotos[frameIndex] = event.target.result;
+                        hasUnsavedChanges = true;
+                        showSaveTip();
+
+                        // 显示照片，隐藏雪花（保持在相框上显示照片的状态）
+                        selectedFrame.userData.photo.visible = true;
+                        selectedFrame.userData.photo.material.opacity = 0.95;
+                        selectedFrame.userData.snowflake.visible = false;
+                        selectedFrame.userData.showingPhoto = true;
+                        selectedFrame.userData.photoExpanded = false;
+                    }
+
+                    showChangePhotoTip();
+                    // 更换照片后关闭弹窗，相框上直接显示新照片
+                    photoContainer.style.transform = 'translate(-50%, -50%) scale(0)';
+                    isReplacing = false;
+                    selectedFrame = null;
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+
+        closeBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (isReplacing) {
+                isReplacing = false;
+                selectedFrame = null;
+                fileInput.value = '';
+                // 更换照片后关闭弹窗，相框保持显示照片状态
+                photoContainer.style.transform = 'translate(-50%, -50%) scale(0)';
+                return;
+            }
+            // 关闭弹窗时，将放大的照片变回雪花
+            if (expandedFrame) {
+                expandedFrame.userData.photo.visible = false;
+                expandedFrame.userData.photo.material.opacity = 0;
+                expandedFrame.userData.snowflake.visible = true;
+                expandedFrame.userData.showingPhoto = false;
+                expandedFrame.userData.photoExpanded = false;
+                expandedFrame = null;
+            }
             photoContainer.style.transform = 'translate(-50%, -50%) scale(0)';
         };
+
+        photoContainer.appendChild(replaceBtn);
         photoContainer.appendChild(closeBtn);
+
+        // 点击弹窗背景关闭（点击按钮除外）
+        photoContainer.onclick = (e) => {
+            if (e.target === photoContainer) {
+                if (isReplacing) {
+                    // 更换照片后关闭弹窗，相框保持显示照片状态
+                    isReplacing = false;
+                    selectedFrame = null;
+                    photoContainer.style.transform = 'translate(-50%, -50%) scale(0)';
+                    return;
+                }
+                // 关闭弹窗时，将放大的照片变回雪花
+                if (expandedFrame) {
+                    expandedFrame.userData.photo.visible = false;
+                    expandedFrame.userData.photo.material.opacity = 0;
+                    expandedFrame.userData.snowflake.visible = true;
+                    expandedFrame.userData.showingPhoto = false;
+                    expandedFrame.userData.photoExpanded = false;
+                    expandedFrame = null;
+                }
+                photoContainer.style.transform = 'translate(-50%, -50%) scale(0)';
+            }
+        };
+
+        // 保存功能
+        saveBtn.onclick = () => {
+            const config = {
+                framePhotos: framePhotos,
+                savedAt: new Date().toISOString()
+            };
+            const configStr = JSON.stringify(config);
+
+            // 保存到 localStorage
+            localStorage.setItem('christmasTreeConfig', configStr);
+
+            // 同时下载文件
+            const blob = new Blob([configStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'christmas-tree-config.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            hasUnsavedChanges = false;
+            alert('配置已保存！\n\n已保存到本地存储和配置文件。\n下次打开页面会自动加载保存的照片。');
+        };
+
+        // 页面加载时自动从 localStorage 恢复配置
+        window.addEventListener('load', () => {
+            const savedConfig = localStorage.getItem('christmasTreeConfig');
+            if (savedConfig) {
+                try {
+                    const config = JSON.parse(savedConfig);
+                    if (config.framePhotos && Array.isArray(config.framePhotos)) {
+                        let loadedCount = 0;
+                        const totalToLoad = config.framePhotos.filter(p => p && photoFrames[config.framePhotos.indexOf(p)]).length;
+
+                        // 立即加载，确保在相框创建后尽快设置状态
+                        config.framePhotos.forEach((photoData, index) => {
+                            if (photoData && photoFrames[index]) {
+                                const frame = photoFrames[index];
+
+                                // 先隐藏雪花，等待照片加载完成
+                                if (frame.userData.snowflake) {
+                                    frame.userData.snowflake.visible = false;
+                                }
+
+                                const newTexture = new THREE.TextureLoader().load(photoData, () => {
+                                    // 照片加载完成
+                                    newTexture.flipY = false;
+
+                                    // 更新照片材质
+                                    frame.children.forEach(child => {
+                                        if (child.isMesh && child.material.map) {
+                                            child.material.map = newTexture;
+                                            child.material.needsUpdate = true;
+                                            child.visible = true;
+                                            child.material.opacity = 0;
+                                        }
+                                    });
+
+                                    frame.userData.showingPhoto = true;
+                                    framePhotos[index] = photoData;
+                                    loadedCount++;
+
+                                    if (loadedCount === totalToLoad) {
+                                        console.log('已自动加载保存的照片配置');
+                                    }
+                                });
+                            }
+                        });
+                    }
+                } catch (err) {
+                    console.error('加载保存的配置失败:', err);
+                }
+            }
+        });
 
         function showPhoto() {
             photoContainer.style.transform = 'translate(-50%, -50%) scale(1)';
@@ -676,29 +1236,77 @@
 
             raycaster.setFromCamera(mouse, camera);
 
-            gifts.forEach(gift => {
-                if (gift.userData.exploded) return;
+            // 检查是否点击了放大状态的照片（点击任意位置关闭）
+            if (expandedFrame) {
+                // 关闭放大照片，变回雪花
+                expandedFrame.userData.photo.visible = false;
+                expandedFrame.userData.photo.material.opacity = 0;
+                expandedFrame.userData.snowflake.visible = true;
+                expandedFrame.userData.showingPhoto = false;
+                expandedFrame.userData.photoExpanded = false;
 
-                const intersects = raycaster.intersectObjects(gift.children, true);
+                // 隐藏弹窗
+                photoContainer.style.transform = 'translate(-50%, -50%) scale(0)';
+                expandedFrame = null;
+                return;
+            }
 
-                if (intersects.length > 0) {
-                    gift.userData.exploded = true;
-                    createExplosion(gift.position.clone(), gift.userData.color);
-                    gift.visible = false;
+            // 检测相框点击 - 三态切换：雪花 → 照片 → 放大照片 → 雪花
+            for (let i = 0; i < photoFrames.length; i++) {
+                const frame = photoFrames[i];
+                const hitMesh = frame.userData.hitMesh;
+                const snowflake = frame.userData.snowflake;
+                const photo = frame.userData.photo;
 
-                    setTimeout(() => {
-                        showPhoto();
-                    }, 500);
+                if (hitMesh && snowflake && photo) {
+                    const intersects = raycaster.intersectObject(hitMesh, false);
 
-                    setTimeout(() => {
-                        gift.visible = true;
-                        gift.userData.exploded = false;
-                    }, 3000);
+                    if (intersects.length > 0) {
+                        const state = frame.userData.showingPhoto;
+                        const expanded = frame.userData.photoExpanded || false;
+
+                        if (!state) {
+                            // 状态 1: 雪花 → 显示照片
+                            photo.visible = true;
+                            photo.material.opacity = 0.95;
+                            snowflake.visible = false;
+                            frame.userData.showingPhoto = true;
+                            frame.userData.photoExpanded = false;
+                        } else if (state && !expanded) {
+                            // 状态 2: 照片 → 放大到屏幕中间
+                            photo.visible = true;
+                            photo.material.opacity = 0.95;
+                            snowflake.visible = false;
+                            frame.userData.showingPhoto = true;
+                            frame.userData.photoExpanded = true;
+
+                            // 设置当前相框为选中
+                            selectedFrame = frame;
+                            selectedFrameIndex = frame.userData.frameIndex || 0;
+
+                            // 更新弹窗图片为当前相框的照片
+                            if (framePhotos[i]) {
+                                photoImg.src = framePhotos[i];
+                            }
+
+                            // 显示放大弹窗
+                            photoContainer.style.transform = 'translate(-50%, -50%) scale(1)';
+                            expandedFrame = frame;
+                        }
+                        return;
+                    }
                 }
-            });
+            }
+        }
+
+        // 双击打开更换照片弹窗（已禁用，现在使用单击切换）
+        function onDoubleClick(event) {
+            // 不再响应双击，所有操作通过单击完成
+            return;
         }
 
         window.addEventListener('click', onMouseClick);
+        window.addEventListener('dblclick', onDoubleClick);
 
         // 动画
         const clock = new THREE.Clock();
@@ -711,9 +1319,8 @@
             // 光点闪烁效果
             particleGroups.forEach(group => {
                 if (group.mesh && group.mesh.material) {
-                    const baseOpacity = group.type === 'star' ? 1 : 0.8;
-                    const flicker = Math.sin(time * 3 + group.mesh.id) * 0.2 + 0.8;
-                    group.mesh.material.opacity = baseOpacity * flicker;
+                    const flicker = Math.sin(time * 3 + group.mesh.id) * 0.15 + 0.85;
+                    group.mesh.material.opacity = flicker;
                 }
 
                 if (group.light) {
@@ -740,6 +1347,18 @@
             photoFrames.forEach((frame, index) => {
                 frame.rotation.y += 0.005;
                 frame.position.y += Math.sin(time * 2 + index) * 0.002;
+
+                // hitMesh 始终面向相机
+                const hitMesh = frame.userData.hitMesh;
+                if (hitMesh) {
+                    hitMesh.lookAt(camera.position);
+                }
+
+                // 雪花旋转（当照片未显示时）
+                const snowflake = frame.userData.snowflake;
+                if (snowflake && !frame.userData.showingPhoto) {
+                    snowflake.rotation.z = time * 0.3 + index * 0.5;
+                }
             });
 
             // 雪花粒子
@@ -757,10 +1376,13 @@
                 snowGeometry.setAttribute('position', new THREE.BufferAttribute(snowPositions, 3));
 
                 const snowMaterial = new THREE.PointsMaterial({
-                    color: 0xffffff,
-                    size: 0.1,
+                    color: 0xadd8e6,
+                    size: 0.08,
+                    map: circleTexture,
                     transparent: true,
-                    opacity: 0.6
+                    opacity: 0.4,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
                 });
 
                 scene.userData.snow = new THREE.Points(snowGeometry, snowMaterial);
@@ -775,29 +1397,6 @@
                 }
             }
             scene.userData.snow.geometry.attributes.position.needsUpdate = true;
-
-            // 爆炸粒子动画
-            for (let i = explosions.length - 1; i >= 0; i--) {
-                const explosion = explosions[i];
-                const pos = explosion.geometry.attributes.position.array;
-                const velocities = explosion.userData.velocities;
-
-                for (let j = 0; j < velocities.length; j++) {
-                    pos[j * 3] += velocities[j].x;
-                    pos[j * 3 + 1] += velocities[j].y;
-                    pos[j * 3 + 2] += velocities[j].z;
-                    velocities[j].y -= 0.008;
-                }
-
-                explosion.geometry.attributes.position.needsUpdate = true;
-                explosion.userData.life -= 0.02;
-                explosion.material.opacity = explosion.userData.life;
-
-                if (explosion.userData.life <= 0) {
-                    scene.remove(explosion);
-                    explosions.splice(i, 1);
-                }
-            }
 
             controls.update();
             renderer.render(scene, camera);
