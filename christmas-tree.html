@@ -29,6 +29,52 @@
             pointer-events: none;
             z-index: 100;
         }
+        /* 照片相框弹窗 */
+        .photo-frame-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            z-index: 1000;
+            background: linear-gradient(135deg, #d4af37, #f4e4bc, #d4af37);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 0 50px rgba(255, 215, 0, 0.6), 0 10px 50px rgba(0,0,0,0.5);
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 3px solid #ffd700;
+        }
+        .photo-frame-popup.show {
+            transform: translate(-50%, -50%) scale(1);
+        }
+        .photo-frame-popup img {
+            max-width: 350px;
+            max-height: 400px;
+            display: block;
+            border-radius: 5px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .photo-frame-popup .close-btn {
+            position: absolute;
+            top: -15px;
+            right: -15px;
+            width: 35px;
+            height: 35px;
+            background: linear-gradient(135deg, #ff6b6b, #c0392b);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 22px;
+            font-weight: bold;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.4);
+            border: 2px solid #fff;
+            transition: transform 0.2s;
+        }
+        .photo-frame-popup .close-btn:hover {
+            transform: scale(1.1);
+        }
         h1 {
             font-size: 2em;
             margin-bottom: 5px;
@@ -275,13 +321,19 @@
             addOrnament(x, y, z, color);
         }
 
-        // 灯串
+        // 金黄色灯串
         const lights = [];
-        const lightColors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff];
+        const lightColors = [0xffd700, 0xffaa00, 0xff8800, 0xffee88, 0xffd700];
 
         function addLight(x, y, z, color) {
-            const geometry = new THREE.SphereGeometry(0.08, 8, 8);
-            const material = new THREE.MeshBasicMaterial({ color: color });
+            const geometry = new THREE.SphereGeometry(0.1, 16, 16);
+            const material = new THREE.MeshStandardMaterial({
+                color: color,
+                emissive: color,
+                emissiveIntensity: 1.5,
+                metalness: 0.9,
+                roughness: 0.2
+            });
             const light = new THREE.Mesh(geometry, material);
             light.position.set(x, y, z);
             light.userData.phase = Math.random() * Math.PI * 2;
@@ -289,10 +341,10 @@
             treeGroup.add(light);
         }
 
-        // 螺旋形添加灯串
-        for (let i = 0; i < 60; i++) {
-            const t = i / 60;
-            const angle = t * Math.PI * 8;
+        // 螺旋形添加金黄色灯串（更密集）
+        for (let i = 0; i < 80; i++) {
+            const t = i / 80;
+            const angle = t * Math.PI * 10;
             const y = 1.5 + t * 6.5;
             const radius = 2.5 - t * 1.5;
             const x = Math.cos(angle) * radius;
@@ -302,6 +354,115 @@
         }
 
         scene.add(treeGroup);
+
+        // 加载照片纹理
+        const textureLoader = new THREE.TextureLoader();
+        const photoTexture = textureLoader.load('1.png');
+        photoTexture.colorSpace = THREE.SRGBColorSpace;
+
+        // 在树上添加多个小相框照片
+        const photoFrames = [];
+
+        function createPhotoFrame(x, y, z, rotY, scale = 1) {
+            const frameGroup = new THREE.Group();
+
+            // 照片平面
+            const photoGeometry = new THREE.PlaneGeometry(0.6, 0.8);
+            const photoMaterial = new THREE.MeshStandardMaterial({
+                map: photoTexture,
+                side: THREE.DoubleSide
+            });
+            const photo = new THREE.Mesh(photoGeometry, photoMaterial);
+            frameGroup.add(photo);
+
+            // 金色相框边框
+            const frameGeometry = new THREE.BoxGeometry(0.7, 0.9, 0.05);
+            const frameMaterial = new THREE.MeshStandardMaterial({
+                color: 0xd4af37,
+                metalness: 0.8,
+                roughness: 0.2,
+                emissive: 0xffd700,
+                emissiveIntensity: 0.3
+            });
+            const frame = new THREE.Mesh(frameGeometry, frameMaterial);
+            frameGroup.add(frame);
+
+            // 小光晕效果
+            const glowGeometry = new THREE.RingGeometry(0.35, 0.45, 16);
+            const glowMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffd700,
+                transparent: true,
+                opacity: 0.3
+            });
+            const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+            glow.position.z = 0.03;
+            frameGroup.add(glow);
+
+            frameGroup.position.set(x, y, z);
+            frameGroup.rotation.y = rotY;
+            frameGroup.scale.setScalar(scale);
+
+            scene.add(frameGroup);
+            photoFrames.push(frameGroup);
+
+            return frameGroup;
+        }
+
+        // 在树的不同位置添加多个小相框
+        createPhotoFrame(1.8, 3, 1.5, -0.5, 0.8);
+        createPhotoFrame(-1.5, 4, 1.2, 0.4, 0.7);
+        createPhotoFrame(1.2, 5, -0.8, -0.3, 0.6);
+        createPhotoFrame(-1, 6, 1, 0.5, 0.65);
+        createPhotoFrame(0.8, 2.5, -1.2, -0.6, 0.75);
+
+        // 在另一侧添加一个礼物堆装饰
+        const giftStackGroup = new THREE.Group();
+
+        function createSmallGift(color, ribbonColor) {
+            const group = new THREE.Group();
+            const boxGeometry = new THREE.BoxGeometry(0.5, 0.4, 0.5);
+            const boxMaterial = new THREE.MeshStandardMaterial({
+                color: color,
+                metalness: 0.3,
+                roughness: 0.5
+            });
+            const box = new THREE.Mesh(boxGeometry, boxMaterial);
+            box.castShadow = true;
+            group.add(box);
+
+            const ribbon = new THREE.Mesh(
+                new THREE.BoxGeometry(0.52, 0.08, 0.1),
+                new THREE.MeshStandardMaterial({ color: ribbonColor })
+            );
+            group.add(ribbon);
+
+            return group;
+        }
+
+        const smallGift1 = createSmallGift(0xff6b6b, 0xffffff);
+        smallGift1.position.set(0, 0.2, 0);
+        smallGift1.rotation.y = 0.3;
+
+        const smallGift2 = createSmallGift(0x4ecdc4, 0xffd700);
+        smallGift2.position.set(-0.3, 0.5, 0.2);
+        smallGift2.rotation.y = -0.2;
+
+        const smallGift3 = createSmallGift(0xffe66d, 0xff6b6b);
+        smallGift3.position.set(0.25, 0.45, -0.15);
+        smallGift3.rotation.y = 0.5;
+
+        giftStackGroup.add(smallGift1, smallGift2, smallGift3);
+        giftStackGroup.position.set(-3.5, 0, 1);
+        giftStackGroup.rotation.y = 0.2;
+        scene.add(giftStackGroup);
+
+        // 添加聚光灯照亮照片
+        const photoSpotLight = new THREE.SpotLight(0xffffff, 2);
+        photoSpotLight.position.set(6, 4, 2);
+        photoSpotLight.target = treeGroup;
+        photoSpotLight.angle = Math.PI / 6;
+        photoSpotLight.penumbra = 0.3;
+        scene.add(photoSpotLight);
 
         // 雪花粒子
         const snowGeometry = new THREE.BufferGeometry();
@@ -440,12 +601,13 @@
         document.body.appendChild(photoContainer);
 
         const photoImg = document.createElement('img');
-        photoImg.src = '1.jpg';
+        photoImg.src = '1.png';
         photoImg.style.cssText = `
             max-width: 300px;
             max-height: 300px;
             display: block;
             border-radius: 5px;
+            border: 3px solid #ffd700;
         `;
         photoImg.onerror = function() {
             this.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect fill="#f0f0f0" width="300" height="200"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="#666" font-family="Arial">照片加载失败</text></svg>');
@@ -533,10 +695,11 @@
                 ornament.position.y = ornament.userData.originalY + Math.sin(time * 2 + ornament.userData.phase) * 0.05;
             });
 
-            // 灯串闪烁
+            // 金黄色灯串闪烁（更柔和的发光效果）
             lights.forEach(light => {
-                const intensity = (Math.sin(time * 3 + light.userData.phase) + 1) / 2;
-                light.material.opacity = 0.5 + intensity * 0.5;
+                const intensity = (Math.sin(time * 2 + light.userData.phase) + 1) / 2;
+                light.material.emissiveIntensity = 1 + intensity * 1.5;
+                light.scale.setScalar(1 + intensity * 0.2);
             });
 
             // 雪花下落
